@@ -1,10 +1,11 @@
-import getParam from "../utils/getParam.js";
-import { getReservePrice } from "./Prices.js";
-import { adjustPrices } from "../utils/adjustPrices.js";
+import getParam from "../../utils/getParam.js";
+import { getReservePrice } from "../../services/Prices.js";
+import { adjustPrices } from "../../utils/adjustPrices.js";
 import {
   getNotDefaultAssetsFromMeta,
   isBrokenPresale,
-} from "../utils/perpUtils.js";
+} from "../../utils/perpUtils.js";
+
 
 async function getPriceByAssets(aa, assets, varsAndParams) {
   const { state: initialState } = varsAndParams;
@@ -75,6 +76,7 @@ export async function prepareMetaByAA(metaByAA) {
 
     let priceInUSD = amount * price * reservePrice;
     priceInUSD = +priceInUSD.toFixed(2);
+
     if (asset === asset0) {
       asset0Price = priceInUSD;
     } else {
