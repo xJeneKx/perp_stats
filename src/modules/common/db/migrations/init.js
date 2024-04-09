@@ -10,7 +10,7 @@ try {
     aa varchar(32) not null, 
     price float not null, 
     asset varchar(44) not null, 
-    created_at timestamp not null default now()
+    created_at timestamp with time zone DEFAULT now()
     )
 `);
 } catch (error) {

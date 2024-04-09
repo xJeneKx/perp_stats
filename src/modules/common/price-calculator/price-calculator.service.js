@@ -1,5 +1,4 @@
-//ToDo: Move to price calculator class
-import odapp from "../modules/common/odapp-client/odapp-client.service.js";
+import odapp from "../odapp-client/odapp-client.service.js";
 
 // Helper function to calculate rate
 async function getRate(oracle, feedName, decimals) {

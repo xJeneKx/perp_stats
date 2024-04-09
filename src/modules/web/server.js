@@ -1,34 +1,27 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { checkAndInitiateJob } from '../job/job.service.js';
-import db from '../common/db/index.js';
-
-const pool = db.getDbInstance();
+import { getPerpetualStats } from "../perpetual-stats/perpetual-stats.service.js";
 
 const app = new Hono();
 
-app.post('/perp-stats', async (c) => {
-  const body = await c.req.json();
+// FixMe: migration run
+import "../common/db/migrations/init.js";
 
-  if(!body.aa) {
+app.get('/perp-stats', async (c) => {
+  const { aa, fromDate, toDate } = c.req.query();
+
+  if(!aa) {
     return c.body('AA address should be specified!', 400);
   }
 
-  //ToDo: Make better query building based on only from or to value
-  if(!body.from || !body.to) {
+  if(!fromDate || !toDate) {
     return c.body('Date range should be specified!', 400);
   }
   
-  //ToDo: Move to some perp stats service
-  const perpStats = await pool.query(`
-      SELECT aa, asset, price, created_at as date 
-      FROM perp_stats
-      WHERE aa = $1
-        AND created_at > $2
-        AND created_at < $3
-  `, [body.aa, body.from, body.to]);
+  const perpStats = await getPerpetualStats(aa, fromDate, toDate);
   
-  return c.json(perpStats.rows);
+  return c.json(perpStats);
 })
 
 try {

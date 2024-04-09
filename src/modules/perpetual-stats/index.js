@@ -1,30 +1,6 @@
 import odapp from "../common/odapp-client/odapp-client.service.js";
 import { appConfig } from "../common/config/main.configuration.js";
-import { prepareMetaByAA } from "./perpetual-stats.service.js";
-
-// FixMe: migration run
-import "../common/db/migrations/init.js"
-
-import db from '../common/db/index.js';
-
-const pool = db.getDbInstance();
-
-const savePerpetualStatsToDb = async (perpetualStats) => {
-  const query = 'INSERT INTO perp_stats(aa, price, asset) VALUES ';
-
-  const values = perpetualStats.map((perpetual) => {
-    const aa = perpetual.aa;
-
-    const perpetualAssetsPriceValues = [];
-    for (const assetPrice of perpetual.prices) {
-      perpetualAssetsPriceValues.push(`('${aa}',${assetPrice.price},'${assetPrice.asset}')`)
-    }
-
-    return perpetualAssetsPriceValues;
-  })
-
-  await pool.query(query + values.join(','));
-}
+import { prepareMetaByAA, savePerpetualStatsToDb } from "./perpetual-stats.service.js";
 
 export const receiveAndSavePerpetualStats = async () => {
   const metaByAA = {};
