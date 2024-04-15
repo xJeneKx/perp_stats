@@ -1,10 +1,10 @@
-import odapp from "./src/services/ODappClient.js";
-import { baseAAs } from "./src/config.js";
-import { prepareMetaByAA } from "./src/services/perpService.js";
+import odapp from "../common/odapp-client/odapp-client.service.js";
+import { appConfig } from "../common/config/main.configuration.js";
+import { prepareMetaByAA, savePerpetualStatsToDb } from "./perpetual-stats.service.js";
 
-async function init() {
+export const receiveAndSavePerpetualStats = async () => {
   const metaByAA = {};
-  const baseMetaWithVars = await odapp.getAAsByBaseAAsWithVars(baseAAs);
+  const baseMetaWithVars = await odapp.getAAsByBaseAAsWithVars(appConfig.obyte.baseAAs);
   const stakingAAs = [];
 
   for (const baseMeta of baseMetaWithVars) {
@@ -28,16 +28,10 @@ async function init() {
     meta.stakingVars = stakingStateVars[meta.staking_aa];
   }
 
-  const result = [];
+  const perpetualStats = [];
   for (let aa in metaByAA) {
-    result.push(await prepareMetaByAA(metaByAA[aa]));
+    perpetualStats.push(await prepareMetaByAA(metaByAA[aa]));
   }
 
-  saveToDB(result);
-}
-
-init();
-
-function saveToDB(result) {
-  console.log(JSON.stringify(result, null, 2));
+  await savePerpetualStatsToDb(perpetualStats);
 }

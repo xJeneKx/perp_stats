@@ -1,7 +1,7 @@
 import {
   getTargetPriceByPriceAa,
   getReservePrice,
-} from "../services/Prices.js";
+} from "../modules/common/price-calculator/price-calculator.service.js";
 
 export const adjustPrices = async (asset, asset_info, state, varsAndParams) => {
   const getParameter = (name, defaultValue) => {

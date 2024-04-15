@@ -1,4 +1,4 @@
-import odapp from "./ODappClient.js";
+import odapp from "../odapp-client/odapp-client.service.js";
 
 // Helper function to calculate rate
 async function getRate(oracle, feedName, decimals) {

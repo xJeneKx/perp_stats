@@ -1,10 +1,55 @@
-import getParam from "../utils/getParam.js";
-import { getReservePrice } from "./Prices.js";
-import { adjustPrices } from "../utils/adjustPrices.js";
+import getParam from "../../utils/getParam.js";
+import { getReservePrice } from "../common/price-calculator/price-calculator.service.js";
+import { adjustPrices } from "../../utils/adjustPrices.js";
 import {
   getNotDefaultAssetsFromMeta,
   isBrokenPresale,
-} from "../utils/perpUtils.js";
+} from "../../utils/perpUtils.js";
+import db from '../common/db/index.js';
+
+const pool = db.getDbInstance();
+
+export const getLastPerpStatDate = async () => {
+  const result = await pool.query(`
+      SELECT created_at as date 
+      FROM perp_stats
+      ORDER BY created_at DESC
+      LIMIT 1
+  `);
+  
+  return result.rows.length ? result.rows[0].date : null;
+}
+
+export const getPerpetualStats = async (aa, fromDate, toDate) => {
+  const result = await pool.query(`
+      SELECT aa, asset, price, created_at as date 
+      FROM perp_stats
+      WHERE aa = $1
+        AND created_at > $2
+        AND created_at < $3
+  `, [aa, fromDate, toDate]);
+  
+  return result.rows;
+}
+
+export const savePerpetualStatsToDb = async (perpetualStats) => {
+  const query = 'INSERT INTO perp_stats(aa, price, asset) VALUES ';
+
+  const values = perpetualStats.map((perpetual) => {
+    const aa = perpetual.aa;
+
+    const perpetualAssetsPriceValues = [];
+    for (const assetPrice of perpetual.prices) {
+      perpetualAssetsPriceValues.push(`('${aa}',${assetPrice.price},'${assetPrice.asset}')`)
+    }
+
+    return perpetualAssetsPriceValues;
+  })
+  
+  console.log('Saving stats to Db:')
+  await pool.query(query + values.join(','));
+  console.log('Saved..')
+}
 
 async function getPriceByAssets(aa, assets, varsAndParams) {
   const { state: initialState } = varsAndParams;
@@ -75,6 +120,7 @@ export async function prepareMetaByAA(metaByAA) {
 
     let priceInUSD = amount * price * reservePrice;
     priceInUSD = +priceInUSD.toFixed(2);
+
     if (asset === asset0) {
       asset0Price = priceInUSD;
     } else {
