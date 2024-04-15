@@ -1,16 +1,16 @@
-import { appConfig } from "../config/main.configuration.js";
-import pg from "pg";
+import { appConfig } from '../config/main.configuration.js';
+import pg from 'pg';
 
 const { Pool } = pg;
 
 export class Database {
-  pool;
+    pool;
 
-  constructor() {
-    this.pool = new Pool(appConfig.db.pool.options);
-  }
+    constructor() {
+        this.pool = new Pool(appConfig.db.pool.options);
+    }
 
-  getDbInstance() {
-    return this.pool;
-  }
+    getDbInstance() {
+        return this.pool;
+    }
 }

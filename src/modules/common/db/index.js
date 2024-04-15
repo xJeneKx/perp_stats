@@ -1,4 +1,4 @@
-import { Database } from "./db.service.js";
+import { Database } from './db.service.js';
 
 const db = new Database();
 
