@@ -1,11 +1,11 @@
-import db from "../index.js";
+import db from '../index.js';
 
 const pool = db.getDbInstance();
 
 try {
-  console.log("migrating...");
+    console.log('migrating...');
 
-  await pool.query(`CREATE TABLE IF NOT EXISTS perp_stats (
+    await pool.query(`CREATE TABLE IF NOT EXISTS perp_stats (
     id serial primary key, 
     aa varchar(32) not null, 
     price float not null,  
@@ -13,6 +13,8 @@ try {
     created_at timestamp with time zone DEFAULT now()
     ) 
 `);
+
+    console.log('migrating done...');
 } catch (error) {
-  console.error("Error on init migration: ", error);
+    console.error('Error on init migration: ', error);
 }
