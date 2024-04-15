@@ -5,8 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start:perpetual-stats": "node src/modules/perpetual-stats/index.js",
-    "start:web": "node src/modules/web/server.js"
+    "start": "node src/modules/web/server.js"
   },
   "keywords": [],
   "author": "",
@@ -17,7 +16,7 @@
     "dayjs": "^1.11.10",
     "dotenv": "^16.4.5",
     "hono": "^4.2.2",
-    "odapp": "^0.1.7",
+    "odapp": "^0.1.8",
     "pg": "^8.11.5"
   },
   "devDependencies": {

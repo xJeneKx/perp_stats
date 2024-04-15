@@ -1,33 +1,36 @@
-import { serve } from "@hono/node-server";
-import { Hono } from "hono";
-import { checkAndInitiateJob } from "../job/job.service.js";
-import { getPerpetualStats } from "../perpetual-stats/perpetual-stats.service.js";
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { checkAndInitiateJob } from '../job/job.service.js';
+import { getPerpetualStats } from '../perpetual-stats/perpetual-stats.service.js';
 
 const app = new Hono();
 
 // FixMe: migration run
-import "../common/db/migrations/init.js";
+import '../common/db/migrations/init.js';
 
-app.get("/perp-stats", async (c) => {
-  const { aa, fromDate, toDate } = c.req.query();
+app.get('/perp-stats', async (c) => {
+    const { aa, fromDate, toDate } = c.req.query();
 
-  if (!aa) {
-    return c.body("AA address should be specified!", 400);
-  }
+    if (!aa) {
+        return c.body('AA address should be specified!', 400);
+    }
 
-  if (!fromDate || !toDate) {
-    return c.body("Date range should be specified!", 400);
-  }
+    if (!fromDate || !toDate) {
+        return c.body('Date range should be specified!', 400);
+    }
 
-  const perpStats = await getPerpetualStats(aa, fromDate, toDate);
+    const perpStats = await getPerpetualStats(aa, fromDate, toDate);
 
-  return c.json(perpStats);
+    return c.json(perpStats);
 });
 
 try {
-  serve(app);
+    serve({
+        fetch: app.fetch,
+        port: process.env.WEB_PORT || 3000,
+    });
 
-  await checkAndInitiateJob();
+    await checkAndInitiateJob();
 } catch (error) {
-  console.error("Error on application start: ", error);
+    console.error('Error on application start: ', error);
 }
