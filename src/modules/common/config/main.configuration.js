@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import "dotenv/config";
 
 const network = process.env.NETWORK || "mainnet";
 
@@ -20,16 +20,17 @@ export const appConfig = {
         host: process.env.DB_HOST,
         database: process.env.DB_NAME,
         password: process.env.DB_PASSWORD,
-        port: process.env.DB_PORT
-      }
-    }
+        port: process.env.DB_PORT,
+      },
+    },
   },
   client: {
-    url: network === "mainnet"
-      ? "https://odapp.aa-dev.net"
-      : "https://odapp-t.aa-dev.net"
+    url:
+      network === "mainnet"
+        ? "https://odapp.aa-dev.net"
+        : "https://odapp-t.aa-dev.net",
   },
   obyte: {
-    baseAAs
-  }
-}
+    baseAAs,
+  },
+};
