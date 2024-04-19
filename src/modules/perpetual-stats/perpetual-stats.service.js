@@ -1,5 +1,8 @@
 import getParam from '../../utils/getParam.js';
-import { getReservePrice } from '../common/price-calculator/price-calculator.service.js';
+import {
+    getReservePrice,
+    getAssetsMetadata,
+} from '../common/price-calculator/price-calculator.service.js';
 import { adjustPrices } from '../../utils/adjustPrices.js';
 import {
     getNotDefaultAssetsFromMeta,
@@ -33,6 +36,69 @@ export const getPerpetualStats = async (aa, fromDate, toDate) => {
     );
 
     return result.rows;
+};
+
+async function getAssetStatsByHour(asset, fromDate, toDate) {
+    const result = await pool.query(
+        `
+      SELECT DISTINCT asset, aa, price, created_at as date 
+      FROM perp_stats
+      WHERE asset = $1
+        AND created_at > $2
+        AND created_at < $3
+        ORDER BY created_at ASC
+  `,
+        [asset, fromDate, toDate]
+    );
+
+    return result.rows;
+}
+
+async function getAssetStatsByDay(asset, fromDate, toDate) {
+    const result = await pool.query(
+        `
+    WITH cte AS (
+        SELECT 
+            asset,
+            price,
+            created_at AS date,
+            ROW_NUMBER() OVER (PARTITION BY asset, created_at::date ORDER BY created_at DESC) AS rn
+        FROM perp_stats
+        WHERE asset = $1
+            AND created_at >= $2
+            AND created_at < $3
+    )
+    SELECT
+        asset,
+        price,
+        date
+    FROM cte
+    WHERE rn = 1
+    ORDER BY date ASC
+  `,
+        [asset, fromDate, toDate]
+    );
+
+    return result.rows;
+}
+
+export const getAssetStats = async (asset, fromDate, toDate, groupByDay) => {
+    let result;
+    if (groupByDay) {
+        result = await getAssetStatsByDay(asset, fromDate, toDate);
+        result = result.map((v) => {
+            return {
+                ...v,
+                date: v.date.toISOString().split('T')[0],
+            };
+        });
+    } else {
+        result = await getAssetStatsByHour(asset, fromDate, toDate);
+    }
+
+    console.error(result.length, asset, fromDate, toDate);
+
+    return result;
 };
 
 export const savePerpetualStatsToDb = async (perpetualStats) => {
@@ -92,10 +158,9 @@ export async function prepareMetaByAA(metaByAA) {
     const presalePeriod = getParam('presale_period', metaByAA);
 
     const reservePriceAA = metaByAA.reserve_price_aa;
-    const { asset0, s0 } = metaByAA.state;
+    const { asset0 } = metaByAA.state;
 
     const assetList = [asset0];
-    const amountByAsset = { [asset0]: s0 };
 
     const reservePrice = await getReservePrice(reservePriceAA);
 
@@ -116,20 +181,20 @@ export async function prepareMetaByAA(metaByAA) {
         const { supply } = _assets[asset];
         if (!supply) continue;
 
-        amountByAsset[asset] = supply;
         assetList.push(asset);
     }
 
+    const metaByAsset = await getAssetsMetadata(assetList);
     const r = await getPriceByAssets(metaByAA.aa, assetList, metaByAA);
 
     let asset0Price = 0;
     let ps = [];
     for (let asset in r) {
-        const amount = amountByAsset[asset];
+        if (!metaByAsset[asset]) continue;
         const price = r[asset];
 
-        let priceInUSD = amount * price * reservePrice;
-        priceInUSD = +priceInUSD.toFixed(2);
+        let priceInUSD = price * reservePrice; // raw price in usd
+        priceInUSD *= 10 ** metaByAsset[asset].decimals; // price in usd with decimals
 
         if (asset === asset0) {
             asset0Price = priceInUSD;
@@ -140,10 +205,6 @@ export async function prepareMetaByAA(metaByAA) {
 
     return {
         aa: metaByAA.aa,
-        prices: [
-            { price: reservePrice, asset: 'reserve' },
-            { price: asset0Price, asset: asset0 },
-            ...ps,
-        ],
+        prices: [{ price: asset0Price, asset: asset0 }, ...ps],
     };
 }

@@ -70,3 +70,26 @@ export async function getTargetPriceByPriceAa(price_aa) {
         (params.multiplier || 1)
     );
 }
+
+const assetsCache = {};
+export async function getAssetsMetadata(assets) {
+    const cachedMetadata = {};
+    const assetsToFetch = [];
+
+    assets.forEach((asset) => {
+        if (assetsCache[asset]) {
+            cachedMetadata[asset] = assetsCache[asset];
+        } else {
+            assetsToFetch.push(asset);
+        }
+    });
+
+    if (!assetsToFetch.length) {
+        return cachedMetadata;
+    }
+
+    const fetchedMetadata = await odapp.getAssetsMetadata(assetsToFetch);
+    Object.assign(assetsCache, fetchedMetadata);
+
+    return { ...cachedMetadata, ...fetchedMetadata };
+}
