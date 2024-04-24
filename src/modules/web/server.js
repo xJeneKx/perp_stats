@@ -1,10 +1,12 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import dayjs from 'dayjs';
 import { checkAndInitiateJob } from '../job/job.service.js';
 import { getAssetStats } from '../perpetual-stats/perpetual-stats.service.js';
 
 const app = new Hono();
+app.use(cors());
 
 // FixMe: migration run
 import '../common/db/migrations/init.js';
