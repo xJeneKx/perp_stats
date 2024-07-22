@@ -194,7 +194,7 @@ export async function prepareMetaByAA(metaByAA) {
         const price = r[asset];
 
         let priceInUSD = price * reservePrice; // raw price in usd
-        priceInUSD *= 10 ** metaByAsset[asset].decimals; // price in usd with decimals
+        priceInUSD *= 10 ** (metaByAsset[asset].decimals || 0); // price in usd with decimals
 
         if (asset === asset0) {
             asset0Price = priceInUSD;
