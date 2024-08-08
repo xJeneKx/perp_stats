@@ -36,7 +36,11 @@ app.get('/lastWeek', async (c) => {
 
     asset = asset.replace(/\s/g, '+');
 
-    const fromDate = dayjs().subtract(7, 'day').toISOString();
+    const fromDate = dayjs()
+        .subtract(8, 'day')
+        .hour(23)
+        .minute(59)
+        .toISOString();
     const toDate = dayjs().toISOString();
 
     const perpStats = await getAssetStats(asset, fromDate, toDate, false);
