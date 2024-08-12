@@ -2,8 +2,11 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
 import { checkAndInitiateJob } from '../job/job.service.js';
 import { getAssetStats } from '../perpetual-stats/perpetual-stats.service.js';
+
+dayjs.extend(utc);
 
 const app = new Hono();
 app.use(cors());
@@ -28,7 +31,8 @@ import '../common/db/migrations/init.js';
 // });
 
 app.get('/lastWeek', async (c) => {
-    let { asset } = c.req.query();
+    let { asset, tzOffset } = c.req.query();
+    tzOffset = tzOffset ? parseInt(tzOffset) / 60 : 0;
 
     if (!asset) {
         return c.body('asset should be specified!', 400);
@@ -36,10 +40,13 @@ app.get('/lastWeek', async (c) => {
 
     asset = asset.replace(/\s/g, '+');
 
-    const fromDate = dayjs()
-        .subtract(8, 'day')
-        .hour(23)
-        .minute(59)
+    const fromDate = dayjs().utc()
+        .subtract(7, 'day')
+        .hour(0)
+        .minute(0)
+        .second(0)
+        .millisecond(0)
+        .subtract(-tzOffset, 'hour')
         .toISOString();
     const toDate = dayjs().toISOString();
 
