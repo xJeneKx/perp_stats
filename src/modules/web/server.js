@@ -32,7 +32,7 @@ import '../common/db/migrations/init.js';
 
 app.get('/lastWeek', async (c) => {
     let { asset, tzOffset } = c.req.query();
-    tzOffset = tzOffset ? parseInt(tzOffset) / 60 : 0;
+    const tzOffsetInHours = tzOffset ? Number(tzOffset) / 60 : 0;
 
     if (!asset) {
         return c.body('asset should be specified!', 400);
@@ -46,7 +46,7 @@ app.get('/lastWeek', async (c) => {
         .minute(0)
         .second(0)
         .millisecond(0)
-        .subtract(-tzOffset, 'hour')
+        .subtract(-tzOffsetInHours, 'hour')
         .toISOString();
     const toDate = dayjs().toISOString();
 
