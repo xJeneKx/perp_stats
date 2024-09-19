@@ -41,12 +41,24 @@ export const getPerpetualStats = async (aa, fromDate, toDate) => {
 async function getAssetStatsByHour(asset, fromDate, toDate) {
     const result = await pool.query(
         `
-      SELECT DISTINCT asset, aa, price, created_at as date 
-      FROM perp_stats
-      WHERE asset = $1
-        AND created_at > $2
-        AND created_at < $3
-        ORDER BY created_at ASC
+    WITH cte AS (
+        SELECT 
+            asset,
+            price,
+            created_at AS date,
+            ROW_NUMBER() OVER (PARTITION BY asset, date_trunc('hour', created_at::timestamp)) AS rn
+        FROM perp_stats
+        WHERE asset = $1
+            AND created_at >= $2
+            AND created_at < $3
+    )
+    SELECT
+        asset,
+        price,
+        date
+    FROM cte
+    WHERE rn = 1
+    ORDER BY date ASC
   `,
         [asset, fromDate, toDate]
     );
