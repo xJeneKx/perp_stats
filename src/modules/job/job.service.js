@@ -32,6 +32,6 @@ export const checkAndInitiateJob = async () => {
             await receiveAndSavePerpetualStats();
         }
     } catch (error) {
-        console.error('Error on job initiation: ', error);
+        console.error('Error on job initiation: ', error.message);
     }
 };
