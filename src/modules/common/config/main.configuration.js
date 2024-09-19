@@ -30,6 +30,7 @@ export const appConfig = {
                 ? 'https://dapp.obyte.org'
                 : 'https://odapp-t.aa-dev.net'),
     },
+    cronTime: process.env.CRON_TIME || '0 0 * * *',
     obyte: {
         baseAAs,
     },

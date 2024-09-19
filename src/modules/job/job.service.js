@@ -1,4 +1,5 @@
 import { CronJob } from 'cron';
+import { appConfig } from '../common/config/main.configuration.js';
 import { receiveAndSavePerpetualStats } from '../perpetual-stats/index.js';
 import { getLastPerpStatDate } from '../perpetual-stats/perpetual-stats.service.js';
 
@@ -17,8 +18,8 @@ const checkJobInitiationOnStart = async () => {
 
 export const checkAndInitiateJob = async () => {
     try {
-        const job = new CronJob(
-            '0 0 * * * *',
+        new CronJob(
+            appConfig.cronTime,
             receiveAndSavePerpetualStats,
             null,
             true
