@@ -25,10 +25,10 @@ export const appConfig = {
         },
     },
     client: {
-        url:
-            network === 'mainnet'
-                ? 'https://odapp.aa-dev.net'
-                : 'https://odapp-t.aa-dev.net',
+        url: process.env.DAPP_HUB ||
+            (network === 'mainnet'
+                ? 'https://dapp.obyte.org'
+                : 'https://odapp-t.aa-dev.net'),
     },
     obyte: {
         baseAAs,
