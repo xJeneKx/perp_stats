@@ -1,6 +1,6 @@
 /*jslint node: true */
 "use strict";
-const check_daemon = require('ocore/check_daemon.js');
+import { checkDaemonAndNotify } from 'ocore/check_daemon.js';
 
-check_daemon.checkDaemonAndNotify('node src/modules/web/server.js');
+checkDaemonAndNotify('node src/modules/web/server.js');
 
