@@ -8,12 +8,10 @@ import {
     getNotDefaultAssetsFromMeta,
     isBrokenPresale,
 } from '../../utils/perpUtils.js';
-import db from '../common/db/index.js';
-
-const pool = db.getDbInstance();
+import db from 'ocore/db.js';
 
 export const getLastPerpStatDate = async () => {
-    const result = await pool.query(`
+    const result = await db.query(`
       SELECT created_at as date 
       FROM perp_stats
       ORDER BY created_at DESC
@@ -24,7 +22,7 @@ export const getLastPerpStatDate = async () => {
 };
 
 export const getPerpetualStats = async (aa, fromDate, toDate) => {
-    const result = await pool.query(
+    const result = await db.query(
         `
       SELECT aa, asset, price, created_at as date 
       FROM perp_stats
@@ -39,7 +37,7 @@ export const getPerpetualStats = async (aa, fromDate, toDate) => {
 };
 
 async function getAssetStatsByHour(asset, fromDate, toDate) {
-    const result = await pool.query(
+    const result = await db.query(
         `
     WITH cte AS (
         SELECT 
@@ -67,7 +65,7 @@ async function getAssetStatsByHour(asset, fromDate, toDate) {
 }
 
 async function getAssetStatsByDay(asset, fromDate, toDate) {
-    const result = await pool.query(
+    const result = await db.query(
         `
     WITH cte AS (
         SELECT 
@@ -130,7 +128,7 @@ export const savePerpetualStatsToDb = async (perpetualStats) => {
     });
 
     console.log('Saving stats to Db:');
-    await pool.query(query + values.join(','));
+    await db.query(query + values.join(','));
     console.log('Saved..');
 };
 

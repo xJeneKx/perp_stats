@@ -13,25 +13,12 @@ const baseAAs = envBaseAAs
     .filter((v) => v);
 
 export const appConfig = {
-    db: {
-        pool: {
-            options: {
-                user: process.env.DB_USER,
-                host: process.env.DB_HOST,
-                database: process.env.DB_NAME,
-                password: process.env.DB_PASSWORD,
-                port: process.env.DB_PORT,
-            },
-        },
-    },
-    client: {
-        url: process.env.DAPP_HUB ||
-            (network === 'mainnet'
-                ? 'https://dapp.obyte.org'
-                : 'https://odapp-t.aa-dev.net'),
-    },
-    cronTime: process.env.CRON_TIME || '0 0 * * *',
+    port: Number(process.env.WEB_PORT) || 3000,
+    cronTime: '0 0 * * * *',
     obyte: {
         baseAAs,
+        hub: (network === 'mainnet'
+            ? 'obyte.org/bb'
+            : 'obyte.org/bb-test'),
     },
 };

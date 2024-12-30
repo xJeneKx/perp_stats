@@ -1,25 +1,41 @@
-import db from '../index.js';
+import db from 'ocore/db.js';
 
-const pool = db.getDbInstance();
+(async ()=> {
+    try {
+        console.log('start init migration');
 
-try {
-    console.log('migrating...');
+        await db.query(`
+		CREATE TABLE IF NOT EXISTS perp_aa_responses (
+			response_unit CHAR(44) NOT NULL PRIMARY KEY,
+			mci INT NOT NULL,
+			aa_address CHAR(32) NOT NULL,
+			trigger_address CHAR(32) NOT NULL,
+			bounced TINYINT NOT NULL,
+			response TEXT NULL,
+			object_response TEXT NULL,
+			timestamp INT NOT NULL,
+			creation_date INT NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+	`);
 
-    await pool.query(`CREATE TABLE IF NOT EXISTS perp_stats (
-        id serial primary key, 
-        aa varchar(32) not null, 
-        price float not null,
-        asset varchar(44) not null, 
-        created_at timestamp with time zone DEFAULT now()
-    )
-`);
+        await db.query(`
+		CREATE TABLE IF NOT EXISTS perp_aa_mci (
+			aa_address CHAR(32) NOT NULL PRIMARY KEY,
+			mci INT NOT NULL
+		);
+	`);
 
-    await pool.query(`
-        CREATE INDEX IF NOT EXISTS perp_stats_asset_idx 
-        ON perp_stats (asset, created_at DESC);
-    `);
+        await db.query(`
+		CREATE TRIGGER IF NOT EXISTS perp_aa_responses_after_insert
+		AFTER INSERT ON perp_aa_responses
+		FOR EACH ROW
+		BEGIN
+		  INSERT OR REPLACE INTO perp_aa_mci (aa_address, mci) VALUES (NEW.aa_address, NEW.mci);
+		END;
+	`);
 
-    console.log('migrating done...');
-} catch (error) {
-    console.error('Error on init migration: ', error);
-}
+        console.log('finished init migration');
+    } catch (error) {
+        console.error('Error on init migration: ', error);
+    }
+})()
