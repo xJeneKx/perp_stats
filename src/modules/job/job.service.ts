@@ -3,6 +3,7 @@ import { appConfig } from '../common/config/main.configuration.js';
 import { receiveAndSavePerpetualAAsResponses } from '../perpetual-stats';
 // import { getLastPerpStatDate } from '../perpetual-stats/perpetual-stats.service.js';
 
+// ToDo: method to check if job should be initiated depending on last job date
 // const checkJobInitiationOnStart = async () => {
 //     const lastStatLogRowDate = await getLastPerpStatDate();
 //
@@ -17,27 +18,21 @@ import { receiveAndSavePerpetualAAsResponses } from '../perpetual-stats';
 // };
 
 export const checkAndInitiateJob = async () => {
-    try {
-        console.log('cron', appConfig.cronTime);
-        
+    try {        
         new CronJob(
             appConfig.cronTime,
             receiveAndSavePerpetualAAsResponses,
             null,
             true
         );
-        
-        console.log('here 11111')
 
         const initiateJobOnStart = true; //await checkJobInitiationOnStart();
 
         if (initiateJobOnStart) {
             console.log('Starting...');
             await receiveAndSavePerpetualAAsResponses();
-
-            console.log('here 22222')
         }
     } catch (error) {
-        console.error('Error on job initiation: ', error);
+        console.error('Job error: ', error);
     }
 };

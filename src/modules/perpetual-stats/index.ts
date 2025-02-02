@@ -1,111 +1,97 @@
-import db from 'ocore/db.js';
 import network from 'ocore/network.js';
-import { appConfig } from '../common/config/main.configuration.js';
+import eventBus from 'ocore/event_bus.js';
+import {
+    executeGetter,
+    getAADefinition,
+    getAAsFromBaseAAs, 
+    getPerpetualAAHistoricalResponses,
+    getTriggerUnitData,
+} from '../common/hub-api/hub-api.service';
+import {
+    readReservePriceAA,
+    savePerpAAPriceStatistic,
+    savePerpetualReservePriceAA,
+} from '../common/db/db';
+import { AAResponse } from '../common/hub-api/hub-api.interface';
 
-const getAAsFromBaseAAs = async () => {
-    const result = await network.requestFromLightVendor(
-        'light/get_aas_by_base_aas',
-        {
-            base_aas: appConfig.obyte.baseAAs,
-        },
-    );
+const getAndSavePerpetualAAHistoricalResponses = async (perpetualAA: string) => {
+    const perpetualAAResponses = await getPerpetualAAHistoricalResponses(perpetualAA);
 
-    return result.map((v) => v.address);
-}
-
-const getAAResponses = async (aa) => {
-    const latestMci = await db.query(`SELECT mci FROM perp_aa_mci WHERE aa_address = ?;`, [aa]);
-
-    const params = {
-        aa,
-        order: 'ASC'
-    }
-
-    if (latestMci.length) {
-        // @ts-ignore
-        params.min_mci = latestMci[0].mci;
-    }
-
-    return network.requestFromLightVendor(
-        'light/get_aa_responses',
-        params,
-    );
-}
-
-const saveAAResponses = async (responses) => {
-    for (let aaResponse of responses) {
-        const { response_unit, mci, aa_address, trigger_address, bounced, response, objResponseUnit, timestamp } = aaResponse;
-
-        if (!response_unit) {
+    for (const perpetualAAResponse of perpetualAAResponses) {
+        if (!perpetualAAResponse?.response?.responseVars?.price) {
             continue;
         }
 
-        await db.query(
-            `INSERT OR IGNORE INTO perp_aa_responses(response_unit, mci, aa_address, trigger_address, bounced, response, object_response, timestamp) VALUES (?,?,?,?,?,?,?,?);`,
-            [response_unit, mci, aa_address, trigger_address, bounced, JSON.stringify(response), JSON.stringify(objResponseUnit), timestamp]
-        );
+        await handleAAResponse(perpetualAAResponse);
     }
-}
+};
 
-const getAndSaveAAResponses = async (aa) => {
-    const responses = await getAAResponses(aa);
+const subscribeToPerpetualAAResponses = (perpetualAA: string) => {
+    network.addLightWatchedAa(perpetualAA, null, console.log);
 
-    if (responses.length) {
-        await saveAAResponses(responses);
+    eventBus.on('aa_response', async (objResponse: AAResponse)=> {
+        if (objResponse?.response?.responseVars?.price) {
+            console.log('Intercepted perpetual response with price');
+            
+            await handleAAResponse(objResponse);
+        }
+    });
+};
+
+const getReservePriceAA = async (perpetualAA: string): Promise<string> => {
+    const reservePriceAA = await readReservePriceAA(perpetualAA);
+
+    if (reservePriceAA) {
+        return reservePriceAA;
     }
-}
+
+    const definitionResult = await getAADefinition(perpetualAA);
+
+    const definitionReservePriceAA = definitionResult[1].params.reserve_price_aa;
+
+    await savePerpetualReservePriceAA(perpetualAA, definitionReservePriceAA);
+
+    return definitionReservePriceAA;
+};
+
+const getReservePrice = async (perpetualAA: string) => {
+    const reservePriceAA = await getReservePriceAA(perpetualAA);
+
+    return executeGetter(reservePriceAA, 'get_reserve_price');
+};
+
+const handleAAResponse = async (objResponse: AAResponse) => {
+    const perpetualAA = objResponse.aa_address;
+
+    const reservePrice = await getReservePrice(perpetualAA);
+
+    const triggerUnitData = await getTriggerUnitData(objResponse.trigger_unit);
+
+    const perpetualPrice = objResponse.response.responseVars.price * reservePrice;
+
+    const priceStatisticParams = {
+        perpetualAA,
+        triggerUnit: objResponse.trigger_unit,
+        mci: objResponse.mci,
+        timestamp: objResponse.timestamp,
+        price: perpetualPrice,
+        asset: triggerUnitData.asset,
+    };
+
+    await savePerpAAPriceStatistic(priceStatisticParams);
+};
 
 export const receiveAndSavePerpetualAAsResponses = async () => {
-    const aas = await getAAsFromBaseAAs();
+    const perpetualAAs = await getAAsFromBaseAAs();
 
     const responsePromises = [];
 
-    for (let i = 0; i < aas.length; i++) {
-        responsePromises.push(getAndSaveAAResponses(aas[i]));
+    for (const perpetualAA of perpetualAAs) {
+        subscribeToPerpetualAAResponses(perpetualAA);
+
+        responsePromises.push(getAndSavePerpetualAAHistoricalResponses(perpetualAA));
     }
 
+    // ToDo: Figure out parallel handling
     await Promise.all(responsePromises);
-}
-
-// import odapp from '../common/odapp-client/odapp-client.service.js';
-// import { appConfig } from '../common/config/main.configuration.js';
-// import {
-//     prepareMetaByAA,
-//     savePerpetualStatsToDb,
-// } from './perpetual-stats.service.js';
-
-// export const receiveAndSavePerpetualStats = async () => {
-//     const metaByAA = {};
-//     const baseMetaWithVars = await odapp.getAAsByBaseAAsWithVars(
-//         appConfig.obyte.baseAAs
-//     );
-//     const stakingAAs = [];
-//
-//     for (const baseMeta of baseMetaWithVars) {
-//         metaByAA[baseMeta.address] = {
-//             aa: baseMeta.address,
-//             ...baseMeta.definition[1].params,
-//             ...baseMeta.stateVars,
-//         };
-//
-//         stakingAAs.push(baseMeta.stateVars.staking_aa);
-//     }
-//
-//     const [stakingDefs, stakingStateVars] = await Promise.all([
-//         odapp.getDefinitions(stakingAAs),
-//         odapp.getAAsStateVars(stakingAAs),
-//     ]);
-//
-//     for (const aa in metaByAA) {
-//         const meta = metaByAA[aa];
-//         meta.stakingParams = stakingDefs[meta.staking_aa][1].params;
-//         meta.stakingVars = stakingStateVars[meta.staking_aa];
-//     }
-//
-//     const perpetualStats = [];
-//     for (let aa in metaByAA) {
-//         perpetualStats.push(await prepareMetaByAA(metaByAA[aa]));
-//     }
-//
-//     await savePerpetualStatsToDb(perpetualStats);
-// };
+};

@@ -9,7 +9,6 @@ import eventBus from 'ocore/event_bus.js';
 import network from 'ocore/network.js';
 
 import { checkAndInitiateJob } from '../job/job.service';
-// import { getAssetStats } from '../perpetual-stats/perpetual-stats.service.js';
 
 dayjs.extend(utc);
 
@@ -17,7 +16,7 @@ const app = new Hono();
 app.use(cors());
 
 // FixMe: migration run
-import '../common/db/migrations/init.js';
+import '../common/db/migrations/init';
 import { appConfig } from '../common/config/main.configuration.js';
 
 // app.get('/perp-stats', async (c) => {
@@ -93,13 +92,9 @@ const initiateObyteNetwork = async () => {
         serve({
             fetch: app.fetch,
             port: appConfig.port,
-        });
-
-        console.log('start __________ +++++++++++ _________________')
+        })
 
         await initiateObyteNetwork();
-
-        console.log('check __________ +++++++++++ _________________')
 
         await checkAndInitiateJob();
     } catch (error) {
