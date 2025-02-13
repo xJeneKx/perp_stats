@@ -43,6 +43,12 @@ export interface GetAAResponsesParams {
     min_mci?: number
 }
 
+export interface AssetMetadata {
+    asset: string;
+    decimals: number;
+    name: string;
+}
+
 export interface AAResponse {
     mci: number;
     trigger_address: string;

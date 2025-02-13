@@ -26,18 +26,16 @@ export const savePerpAAPriceStatistic = async (params: PriceStatisticParams): Pr
     );
 };
 
-export const readReservePriceAA = async (perpetualAA: string): Promise<string> => {
-    const reservePriceAARows = await db.query(`SELECT reserve_price_aa FROM perp_reserve_price_aa WHERE perpetual_aa = ?;`, [perpetualAA]);
-    
-    return reservePriceAARows.length ? reservePriceAARows[0].reserve_price_aa : null;
-}
-
-export const savePerpetualReservePriceAA = async (perpetualAA: string, reservePriceAA: string): Promise<void> => {
-    await db.query(`INSERT INTO perp_reserve_price_aa(perpetual_aa, reserve_price_aa) VALUES (?, ?);`, [perpetualAA, reservePriceAA]);
-}
-
 export const getLatestPerpetualAAMci = async (perpetualAA: string): Promise<number> => {
     const mciRows = db.query(`SELECT mci FROM perp_aa_mci WHERE perpetual_aa = ?;`, [perpetualAA]);
 
     return mciRows.length ? mciRows[0].mci : null;
+}
+
+export const getPerpetualAssetStatsByDate = async (asset: string, fromDate: number, toDate: number) => {
+    return db.query(`SELECT mci FROM perp_price_history WHERE asset = ? AND timestamp BETWEEN ? AND ?;`, [asset, fromDate, toDate]);
+}
+
+export const getPerpetualLastStatsDate = async () => {
+    return db.query(`SELECT creation_date FROM perp_price_history ORDER BY rowid DESC LIMIT 1`);
 }

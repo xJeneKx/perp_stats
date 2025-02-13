@@ -14,6 +14,13 @@ export const getAAsFromBaseAAs = async () => {
     return result.map((v) => v.address);
 }
 
+export const requestAssetMetadataFromHub = async (asset: string) => {
+    return network.requestFromLightVendor(
+        'hub/get_asset_metadata',
+        asset,
+    );
+}
+
 export const requestFromLightVendorWithRetries = async (command: string, params: any, cb?: any, count_retries?: number) => {
     if (!cb) {
         return new Promise(resolve => requestFromLightVendorWithRetries(command, params, resolve));
@@ -110,3 +117,7 @@ export const getPerpetualAAHistoricalResponses = async (perpetualAA: string): Pr
         params,
     );
 }
+
+export const getReservePrice = async (reservePriceAA: string) => {
+    return executeGetter(reservePriceAA, 'get_reserve_price');
+};
