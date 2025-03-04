@@ -1,16 +1,20 @@
 ## Setup
 
 Required:
-- Postgresql
 - node.js >= v20
 
 ### Steps
 1. Replace .env.example to .env
 2. Change the variables to match your postgresql settings
-3. for mainnet replace `NETWORK='testnet'` to `NETWORK='mainnet'`
+3. for testnet replace `NETWORK='testnet'` to `NETWORK='mainnet'`
 
-
-## start
+### Install
 ```shell
-npm start
+pnpm install
+pnpm build
+```
+
+## Start
+```shell
+pnpm start:prod
 ```
