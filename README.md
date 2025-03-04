@@ -11,6 +11,7 @@ Required:
 ### Install
 ```shell
 pnpm install
+pnpm build
 ```
 
 ## Start
