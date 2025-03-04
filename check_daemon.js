@@ -2,5 +2,5 @@
 "use strict";
 import { checkDaemonAndNotify } from 'ocore/check_daemon.js';
 
-checkDaemonAndNotify('node src/modules/web/server.js');
+checkDaemonAndNotify('node dist/main.js');
 
