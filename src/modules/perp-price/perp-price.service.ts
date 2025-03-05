@@ -3,9 +3,10 @@ import { ObyteService } from '../obyte/obyte.service';
 import eventBus from 'ocore/event_bus';
 import { PerpPriceDto } from './dto/perp-price.dto';
 import { PerpPriceRepository } from './perp-price.repository';
-import { CoinGeckoService } from '../coingecko/coingecko.service';
 import { getTimestamp30DaysAgo } from '../../utils/date.utils';
-import { MarketChartRangeParams, PriceData } from '../coingecko/interfaces/coingecko.interfaces';
+import { OdappService } from '../odapp/odapp.service';
+import { AbstractPriceProviderService } from '../price-provider/providers/abstract-price-provider.service';
+import { PriceData, PriceProviderParams } from '../price-provider/interfaces/price-provider.interface';
 
 @Injectable()
 export class PerpPriceService {
@@ -14,7 +15,8 @@ export class PerpPriceService {
   constructor(
     private readonly obyteService: ObyteService,
     private readonly perpPriceRepository: PerpPriceRepository,
-    private readonly coinGeckoService: CoinGeckoService,
+    private readonly priceProvider: AbstractPriceProviderService,
+    private readonly odappService: OdappService,
   ) {
     this.subscribeToAAResponses();
   }
@@ -49,7 +51,7 @@ export class PerpPriceService {
     const { responseVars } = response;
     if (!responseVars || responseVars.price === undefined) return;
 
-    const priceFromResponse = responseVars.price;
+    const priceInReserve = responseVars.price;
 
     try {
       const { joint } = await this.obyteService.getJoint(trigger_unit);
@@ -58,25 +60,34 @@ export class PerpPriceService {
       if (!dataFromRequest || !dataFromRequest.payload?.asset) return;
 
       const asset = dataFromRequest.payload.asset;
-      const assetMetadata = await this.obyteService.getAssetMetadata(asset);
+      // Get asset metadata from odappService
+      const assetsMetadata = await this.odappService.getAssetsMetadata([asset]);
+      const assetMetadata =
+        assetsMetadata && assetsMetadata[asset]
+          ? {
+              ...assetsMetadata[asset],
+              asset,
+            }
+          : null;
 
       if (!assetMetadata) return;
 
-      const aaDefinition = await this.obyteService.getDefinition(aa_address);
+      const aaDefinition = await this.odappService.getDefinition(aa_address);
       if (!aaDefinition || !aaDefinition[1] || !aaDefinition[1].params) return;
 
       const reserve_asset = aaDefinition[1].params.reserve_asset;
       const reserve_price_aa = aaDefinition[1].params.reserve_price_aa;
 
-      const reserve_price_aa_definition = await this.obyteService.getDefinition(reserve_price_aa);
+      const reserve_price_aa_definition = await this.odappService.getDefinition(reserve_price_aa);
       if (!reserve_price_aa_definition || !reserve_price_aa_definition[1]) return;
 
       let reservePrice = 0;
-      let notForUse = 0;
+      let isRealtime = 0;
 
       if (reserve_price_aa_definition[1].params.oswap_aa) {
         reservePrice = this.obyteService.getExchangeRateByAsset(reserve_asset);
-        notForUse = 1;
+
+        isRealtime = 1;
       } else {
         const oracle = reserve_price_aa_definition[1].params.oracle;
         const feed_name = reserve_price_aa_definition[1].params.feed_name;
@@ -85,16 +96,16 @@ export class PerpPriceService {
         reservePrice = oracle_price / 10 ** decimals;
       }
 
-      const price = reservePrice * priceFromResponse * 10 ** assetMetadata.decimals;
+      const usdPrice = reservePrice * priceInReserve * 10 ** assetMetadata.decimals;
       this.logger.log(`Processed price: ${assetMetadata.decimals}`);
 
       await this.savePrice({
         aaAddress: aa_address,
         mci,
         asset,
-        notForUse,
-        price,
-        priceFromResponse,
+        isRealtime,
+        usdPrice,
+        priceInReserve,
         timestamp,
       });
     } catch (error) {
@@ -161,11 +172,11 @@ export class PerpPriceService {
   private async fillPythHistoryFromCoingecko(pythAddress: string, startTimestamp: number, lastMci: number): Promise<void> {
     const endTimestamp = Math.floor(Date.now() / 1000);
 
-    const aaDefinition = await this.obyteService.getDefinition(pythAddress);
+    const aaDefinition = await this.odappService.getDefinition(pythAddress);
     if (!aaDefinition || !aaDefinition[1] || !aaDefinition[1].params) return;
 
     const reserve_price_aa = aaDefinition[1].params.reserve_price_aa;
-    const reserve_price_aa_definition = await this.obyteService.getDefinition(reserve_price_aa);
+    const reserve_price_aa_definition = await this.odappService.getDefinition(reserve_price_aa);
     if (!reserve_price_aa_definition || !reserve_price_aa_definition[1]) return;
 
     const feedName = reserve_price_aa_definition[1].params.feed_name;
@@ -175,25 +186,26 @@ export class PerpPriceService {
     }
 
     const symbol = feedName.split('_')[0];
-    const coingeckoId = this.coinGeckoService.getCoinIdBySymbol(symbol);
-    if (!coingeckoId) return;
+    const coinId = this.priceProvider.getCoinIdBySymbol(symbol);
 
-    this.logger.log(`Fetching price data for ${coingeckoId} from ${startTimestamp} to ${endTimestamp}`);
+    if (!coinId) return;
 
-    const params: MarketChartRangeParams = {
-      coinId: coingeckoId,
+    this.logger.log(`Fetching price data for ${coinId} from ${startTimestamp} to ${endTimestamp}`);
+
+    const params: PriceProviderParams = {
+      coinId: coinId,
       vsCurrency: 'usd',
       from: startTimestamp,
       to: endTimestamp,
     };
 
     try {
-      const priceData: PriceData[] = await this.coinGeckoService.getMarketChartRange(params);
+      const priceData: PriceData[] = await this.priceProvider.getMarketChartRange(params);
 
-      this.logger.log(`Fetched price data for ${coingeckoId} from ${startTimestamp} to ${endTimestamp}: ${priceData?.length || 0} points`);
+      this.logger.log(`Fetched price data for ${coinId} from ${startTimestamp} to ${endTimestamp}: ${priceData?.length || 0} points`);
 
       if (!priceData || priceData.length === 0) {
-        this.logger.warn(`No price data returned for ${coingeckoId}`);
+        this.logger.warn(`No price data returned for ${coinId}`);
         return;
       }
 
@@ -217,27 +229,32 @@ export class PerpPriceService {
 
   private async fillAssetHistory(pythAddress: string, asset: string, priceData: PriceData[], lastMci: number): Promise<void> {
     try {
-      const priceFromResponse = await this.perpPriceRepository.getLastPriceFromResponse(pythAddress, asset);
+      const priceInReserve = await this.perpPriceRepository.getLastPriceFromResponse(pythAddress, asset);
 
       this.logger.log(`Processing ${priceData.length} price points for asset ${asset}`);
 
       const dataForSave: PerpPriceDto[] = [];
       for (const data of priceData) {
         const { timestamp, price: reservePrice } = data;
-        const price = reservePrice * priceFromResponse;
+        const usdPrice = reservePrice * priceInReserve;
 
         dataForSave.push({
           aaAddress: pythAddress,
           mci: lastMci,
           asset,
-          notForUse: 0,
-          price,
-          priceFromResponse,
+          isRealtime: 0,
+          usdPrice,
+          priceInReserve,
           timestamp,
         });
       }
 
+      if (!dataForSave.length) {
+        this.logger.log(`No data to save for asset ${asset}`);
+      }
+
       this.logger.log(`Saving ${dataForSave.length} price points for asset ${asset}`);
+
       await this.perpPriceRepository.savePricesInBulk(dataForSave);
     } catch (error) {
       this.logger.error(`Error in fillAssetHistory for ${asset}: ${error.message}`, error.stack);

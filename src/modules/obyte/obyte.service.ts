@@ -1,13 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ObyteNetworkService } from './obyte-network.service';
 
-interface AssetMetadata {
-  name: string;
-  decimals: number;
-  asset: string;
-  [key: string]: any;
-}
-
 @Injectable()
 export class ObyteService {
   private readonly logger = new Logger(ObyteService.name);
@@ -32,7 +25,13 @@ export class ObyteService {
   }
 
   getExchangeRateByAsset(asset: string): number {
-    return this.exchangeRates[`${asset}_USD`] || 0;
+    const assetExchangeRate = this.exchangeRates[`${asset}_USD`];
+
+    if (assetExchangeRate === undefined) {
+      throw new Error(`${asset} not found in exchange rates`);
+    }
+
+    return assetExchangeRate;
   }
 
   async getExchangeRates(): Promise<Record<string, number>> {
@@ -44,35 +43,8 @@ export class ObyteService {
     }
   }
 
-  async getAssetMetadata(asset: string): Promise<AssetMetadata | null> {
-    if (asset === 'base') {
-      return {
-        name: 'GBYTE',
-        decimals: 9,
-        asset,
-      };
-    }
-
-    try {
-      const assetMetadata = await this.obyteNetworkService.requestFromOcore('hub/get_asset_metadata', asset);
-
-      const jointResult = await this.getJoint(assetMetadata.metadata_unit);
-
-      const metadata = jointResult.joint.unit.messages.find((item: any) => item.app === 'data');
-
-      return { ...metadata.payload, asset };
-    } catch (error) {
-      this.logger.error(`Failed to get asset metadata for ${asset}: ${error.message}`);
-      return null;
-    }
-  }
-
   async getJoint(unit: string): Promise<any> {
     return this.obyteNetworkService.requestFromOcore('get_joint', unit);
-  }
-
-  async getDefinition(aa: string): Promise<any> {
-    return this.obyteNetworkService.requestFromOcore('light/get_definition', aa);
   }
 
   async getDataFeed(oracle: string, feedName: string, maxMci?: number, otherParams?: Record<string, number | string>): Promise<any> {
