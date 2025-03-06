@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ObyteNetworkService } from './obyte-network.service';
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class ObyteService {
   private readonly logger = new Logger(ObyteService.name);
   private exchangeRates: Record<string, number> = {};
 
-  constructor(private readonly obyteNetworkService: ObyteNetworkService) {
+  constructor(
+    private readonly obyteNetworkService: ObyteNetworkService,
+    private readonly cacheService: CacheService,
+  ) {
     this.scheduleExchangeRatesUpdate();
   }
 
@@ -44,7 +48,8 @@ export class ObyteService {
   }
 
   async getJoint(unit: string): Promise<any> {
-    return this.obyteNetworkService.requestFromOcore('get_joint', unit);
+    const cacheKey = `joint_${unit}`;
+    return this.cacheService.getOrSet(cacheKey, () => this.obyteNetworkService.requestFromOcore('get_joint', unit));
   }
 
   async getDataFeed(oracle: string, feedName: string, maxMci?: number, otherParams?: Record<string, number | string>): Promise<any> {
@@ -94,6 +99,7 @@ export class ObyteService {
       params.min_mci = latestMci;
     }
 
-    return this.obyteNetworkService.requestFromOcore('light/get_aa_responses', params);
+    const cacheKey = `aa_responses_${aa}${latestMci ? `_${latestMci}` : ''}`;
+    return this.cacheService.getOrSet(cacheKey, () => this.obyteNetworkService.requestFromOcore('light/get_aa_responses', params));
   }
 }
