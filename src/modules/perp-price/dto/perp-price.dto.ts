@@ -33,15 +33,15 @@ export class PerpPriceDto {
   asset: string;
 
   @IsOptional()
-  notForUse: number;
+  isRealtime: number;
 
   @IsNumber()
   @Type(() => Number)
-  price: number;
+  usdPrice: number;
 
   @IsNumber()
   @Type(() => Number)
-  priceFromResponse: number;
+  priceInReserve: number;
 
   @IsNumber()
   @Type(() => Number)

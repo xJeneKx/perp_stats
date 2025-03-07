@@ -10,7 +10,7 @@ export class PerpPriceController {
 
   private mapToDto(record: any): PerpPriceResponseDto {
     return {
-      price: record.price,
+      price: record.usdPrice,
       timestamp: record.timestamp,
     };
   }

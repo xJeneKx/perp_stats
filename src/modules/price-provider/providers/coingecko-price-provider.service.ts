@@ -1,10 +1,17 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MarketChartRangeParams, MarketChartRangeResponse, PriceData } from './interfaces/coingecko.interfaces';
+import { AbstractPriceProviderService } from './abstract-price-provider.service';
+import { PriceData, PriceProviderParams } from '../interfaces/price-provider.interface';
+
+interface MarketChartRangeResponse {
+  prices: [number, number][]; // [timestamp, price]
+  market_caps: [number, number][]; // [timestamp, market_cap]
+  total_volumes: [number, number][]; // [timestamp, volume]
+}
 
 @Injectable()
-export class CoinGeckoService {
-  private readonly logger = new Logger(CoinGeckoService.name);
+export class CoinGeckoPriceProviderService implements AbstractPriceProviderService {
+  private readonly logger = new Logger(CoinGeckoPriceProviderService.name);
   private readonly apiKey: string | undefined;
   private readonly baseUrl = 'https://api.coingecko.com/api/v3';
 
@@ -28,8 +35,11 @@ export class CoinGeckoService {
     WETH: 'weth',
   };
 
+  private readonly brokenAssetSymbol: string = 'BBD';
+
   constructor(private readonly configService: ConfigService) {
     this.apiKey = this.configService.get<string>('COINGECKO_TOKEN');
+
     if (!this.apiKey) {
       this.logger.warn('COINGECKO_TOKEN is not set in the environment variables');
     }
@@ -37,16 +47,22 @@ export class CoinGeckoService {
 
   getCoinIdBySymbol(symbol: string): string | null {
     const upperSymbol = symbol.toUpperCase();
-    const coinId = this.symbolToIdMap[upperSymbol];
 
-    if (!coinId) {
-      this.logger.warn(`No CoinGecko mapping found for symbol: ${symbol}`);
+    if (upperSymbol === this.brokenAssetSymbol) {
+      return null;
     }
 
-    return coinId || null;
+    const coinId = this.symbolToIdMap[upperSymbol] || null;
+
+    if (!coinId) {
+      this.logger.error(`No CoinGecko mapping found for symbol: ${symbol}`);
+      process.exit(1);
+    }
+
+    return coinId;
   }
 
-  async getMarketChartRange(params: MarketChartRangeParams): Promise<PriceData[]> {
+  async getMarketChartRange(params: PriceProviderParams): Promise<PriceData[]> {
     try {
       const { coinId, vsCurrency, from, to } = params;
       const url = `${this.baseUrl}/coins/${coinId}/market_chart/range?vs_currency=${vsCurrency}&from=${from}&to=${to}`;

@@ -5,8 +5,11 @@ Required:
 
 ### Steps
 1. Replace .env.example to .env
-2. Change the variables to match your postgresql settings
-3. for testnet replace `NETWORK='testnet'` to `NETWORK='mainnet'`
+2. Install packages
+3. Build project
+
+### Note
+For testnet replace `NETWORK='mainnet'` to `NETWORK='testnet'`
 
 ### Install
 ```shell
