@@ -1,22 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import oDapp from 'odapp';
 import { getParam } from 'src/utils/getParam.utils';
 import { getNotDefaultAssetsFromMeta, isBrokenPresale } from 'src/utils/perp.utils';
-
-export interface PerpetualStat {
-  aa: string;
-  prices: Array<{
-    price: number;
-    asset: string;
-  }>;
-}
+import { PerpetualStat } from './interfaces/prepare-pyth.interface';
+import { OdappService } from '../odapp/odapp.service';
 
 @Injectable()
 export class PreparePythService {
   private readonly logger = new Logger(PreparePythService.name);
   private assetsCache: Record<string, any> = {};
 
-  async prepareMetaByAA(metaByAA: Record<string, any>, odapp: oDapp): Promise<PerpetualStat> {
+  constructor(private readonly odappService: OdappService) {}
+
+  async prepareMetaByAA(metaByAA: Record<string, any>): Promise<PerpetualStat> {
     const assets = getNotDefaultAssetsFromMeta(metaByAA);
     const presalePeriod = getParam('presale_period', metaByAA);
 
@@ -25,7 +20,7 @@ export class PreparePythService {
 
     const assetList = [asset0];
 
-    const reservePrice = await this.getReservePrice(reservePriceAA, odapp);
+    const reservePrice = await this.getReservePrice(reservePriceAA);
 
     const _assets = {};
 
@@ -47,11 +42,11 @@ export class PreparePythService {
       assetList.push(asset);
     }
 
-    const metaByAsset = await this.getAssetsMetadata(assetList, odapp);
-    const r = await this.getPriceByAssets(metaByAA.aa, assetList, metaByAA, odapp);
+    const metaByAsset = await this.getAssetsMetadata(assetList);
+    const r = await this.getPriceByAssets(metaByAA.aa, assetList, metaByAA);
 
     let asset0Price = 0;
-    const ps: Array<{ price: number; asset: string }> = [];
+    const ps: { usdPrice: number; asset: string }[] = [];
     for (const asset in r) {
       if (!metaByAsset[asset]) continue;
       const price = r[asset];
@@ -62,25 +57,25 @@ export class PreparePythService {
       if (asset === asset0) {
         asset0Price = priceInUSD;
       } else {
-        ps.push({ price: priceInUSD, asset });
+        ps.push({ usdPrice: priceInUSD, asset });
       }
     }
 
     return {
       aa: metaByAA.aa,
-      prices: [{ price: asset0Price, asset: asset0 }, ...ps],
+      prices: [{ usdPrice: asset0Price, asset: asset0 }, ...ps],
     };
   }
 
-  async getReservePrice(aa: string, odapp: oDapp) {
+  async getReservePrice(aa: string) {
     try {
-      const def = await odapp.getDefinition(aa);
+      const def = await this.odappService.getDefinition(aa);
       const params = def[1].params;
       if (params.oswap_aa) {
-        const oswapDef = await odapp.getDefinition(params.oswap_aa);
+        const oswapDef = await this.odappService.getDefinition(params.oswap_aa);
         const oswapParams = oswapDef[1].params;
-        const balances = await odapp.getBalances([params.oswap_aa]);
-        const vars = await odapp.getAAStateVars(params.oswap_aa);
+        const balances = await this.odappService.getBalances([params.oswap_aa]);
+        const vars = await this.odappService.getAAStateVars(params.oswap_aa);
 
         const xAsset = oswapParams.x_asset || 'base';
         const yAsset = oswapParams.y_asset || 'base';
@@ -89,16 +84,15 @@ export class PreparePythService {
         const lpShares = vars['lp_shares'];
         const supply = lpShares.issued;
 
-        const xRate = await this.getRate(params.x_oracle, params.x_feed_name, params.x_decimals, odapp);
-        const yRate = await this.getRate(params.y_oracle, params.y_feed_name, params.y_decimals, odapp);
+        const xRate = await this.getRate(params.x_oracle, params.x_feed_name, params.x_decimals);
+        const yRate = await this.getRate(params.y_oracle, params.y_feed_name, params.y_decimals);
         const balance = xBalance * xRate + yBalance * yRate;
 
         return balance / supply;
       } else {
-        return await this.getRate(params.oracle, params.feed_name, params.decimals, odapp);
+        return await this.getRate(params.oracle, params.feed_name, params.decimals);
       }
     } catch (error) {
-      // Handle or throw the error appropriately
       console.error('Failed to get reserve price:', error);
       throw error;
     }
@@ -108,12 +102,12 @@ export class PreparePythService {
     return balances[asset]?.total || 0;
   }
 
-  async getRate(oracle: string, feedName: string, decimals: number, odapp: oDapp) {
-    const rate: number = +(await odapp.getDataFeed([oracle], feedName));
+  async getRate(oracle: string, feedName: string, decimals: number) {
+    const rate: number = +(await this.odappService.getDataFeed([oracle], feedName));
     return rate / Math.pow(10, decimals || 0);
   }
 
-  async getAssetsMetadata(assets: string[], odapp: oDapp) {
+  async getAssetsMetadata(assets: string[]) {
     const cachedMetadata: Record<string, any> = {};
     const assetsToFetch: string[] = [];
 
@@ -129,13 +123,13 @@ export class PreparePythService {
       return cachedMetadata;
     }
 
-    const fetchedMetadata = await odapp.getAssetsMetadata(assetsToFetch);
+    const fetchedMetadata = await this.odappService.getAssetsMetadata(assetsToFetch);
     Object.assign(this.assetsCache, fetchedMetadata);
 
     return { ...cachedMetadata, ...fetchedMetadata };
   }
 
-  async getPriceByAssets(aa: string, assets: string[], varsAndParams: Record<string, any>, odapp: oDapp) {
+  async getPriceByAssets(aa: string, assets: string[], varsAndParams: Record<string, any>) {
     const { state: initialState } = varsAndParams;
     const priceByAsset: Record<string, number> = {};
 
@@ -143,7 +137,7 @@ export class PreparePythService {
       const state = structuredClone(initialState);
       const isAsset0 = state.asset0 === asset;
       const assetInfo = structuredClone(varsAndParams['asset_' + asset]);
-      await this.adjustPrices(asset, assetInfo, state, structuredClone(varsAndParams), odapp);
+      await this.adjustPrices(asset, assetInfo, state, structuredClone(varsAndParams));
       if (!isAsset0 && !assetInfo) continue;
 
       const reserve = state.reserve;
@@ -166,7 +160,6 @@ export class PreparePythService {
     asset_info: Record<string, any>,
     state: Record<string, any>,
     varsAndParams: Record<string, any>,
-    odapp: oDapp,
   ) {
     const getParameter = (name: string, defaultValue: any) => {
       if (varsAndParams[name] !== undefined) {
@@ -195,7 +188,7 @@ export class PreparePythService {
     } else {
       price_aa = asset_info.price_aa;
       if (!price_aa) return;
-      target_price = (await this.getTargetPriceByPriceAa(price_aa, odapp)) / (await this.getReservePrice(get_reserve_price_aa(), odapp));
+      target_price = (await this.getTargetPriceByPriceAa(price_aa)) / (await this.getReservePrice(get_reserve_price_aa()));
       if (typeof target_price !== 'number' || target_price < 0) return;
     }
 
@@ -276,10 +269,10 @@ export class PreparePythService {
     }
   }
 
-  async getTargetPriceByPriceAa(price_aa: string, odapp: oDapp) {
-    const def = await odapp.getDefinition(price_aa);
+  async getTargetPriceByPriceAa(price_aa: string) {
+    const def = await this.odappService.getDefinition(price_aa);
     const params = def[1].params;
 
-    return +(await odapp.getDataFeed([params.oracle], params.feed_name)) * (params.multiplier || 1);
+    return +(await this.odappService.getDataFeed([params.oracle], params.feed_name)) * (params.multiplier || 1);
   }
 }

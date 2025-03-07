@@ -9,9 +9,9 @@ export async function run(): Promise<void> {
         aa_address TEXT NOT NULL,
         mci INTEGER NOT NULL,
         asset TEXT NOT NULL,
-        not_for_use INTEGER NOT NULL DEFAULT 0,
-        price REAL NOT NULL,
-        price_from_response REAL NOT NULL,
+        is_realtime INTEGER NOT NULL DEFAULT 0,
+        usd_price REAL NOT NULL,
+        price_in_reserve REAL NOT NULL,
         timestamp INTEGER NOT NULL,
         creation_date INTEGER DEFAULT (CURRENT_TIMESTAMP),
         CONSTRAINT perp_price_history_pk PRIMARY KEY (aa_address,asset,timestamp)
@@ -20,7 +20,7 @@ export async function run(): Promise<void> {
 
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_perp_price_asset_timestamp 
-      ON perp_price_history (asset, timestamp, price, price_from_response, not_for_use)
+      ON perp_price_history (asset, timestamp)
     `);
 
     await db.query(`

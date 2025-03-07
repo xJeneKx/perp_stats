@@ -3,10 +3,11 @@ import { PerpPriceService } from './perp-price.service';
 import { PerpPriceController } from './perp-price.controller';
 import { PerpPriceRepository } from './perp-price.repository';
 import { ObyteModule } from '../obyte/obyte.module';
-import { CoinGeckoModule } from '../coingecko/coingecko.module';
+import { PriceProviderModule } from '../price-provider/price-provider.module';
+import { OdappModule } from '../odapp/odapp.module';
 
 @Module({
-  imports: [ObyteModule, CoinGeckoModule],
+  imports: [ObyteModule, PriceProviderModule, OdappModule],
   controllers: [PerpPriceController],
   providers: [PerpPriceService, PerpPriceRepository],
   exports: [PerpPriceService],

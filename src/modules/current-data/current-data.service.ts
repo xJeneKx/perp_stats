@@ -1,12 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import oDapp from 'odapp';
 import { ConfigService } from '@nestjs/config';
-import { PreparePythService, PerpetualStat } from './prepare-pyth.service';
+import { PreparePythService } from './prepare-pyth.service';
 import { ObyteService } from '../obyte/obyte.service';
 import { PerpPriceService } from '../perp-price/perp-price.service';
-
-const odapp = new oDapp(process.env.NETWORK === 'mainnet' ? 'https://dapp.obyte.org' : 'https://odapp-t.aa-dev.net', true);
+import { PerpetualStat } from './interfaces/prepare-pyth.interface';
+import { OdappService } from '../odapp/odapp.service';
 
 @Injectable()
 export class CurrentDataService {
@@ -17,6 +16,7 @@ export class CurrentDataService {
     private readonly preparePythService: PreparePythService,
     private readonly obyteService: ObyteService,
     private readonly perpPriceService: PerpPriceService,
+    private readonly odappService: OdappService,
   ) {
     if (process.env.UPDATE_PRICES_ON_START) {
       setTimeout(async () => {
@@ -31,7 +31,7 @@ export class CurrentDataService {
     try {
       const metaByAA: Record<string, any> = {};
       const baseAAs = this.configService.get<string[]>('obyte.baseAAs', []);
-      const baseMetaWithVars: any = await odapp.getAAsByBaseAAsWithVars(baseAAs);
+      const baseMetaWithVars: any = await this.odappService.getAAsByBaseAAsWithVars(baseAAs);
       const stakingAAs: string[] = [];
 
       for (const baseMeta of baseMetaWithVars) {
@@ -44,7 +44,10 @@ export class CurrentDataService {
         stakingAAs.push(baseMeta.stateVars.staking_aa);
       }
 
-      const [stakingDefs, stakingStateVars] = await Promise.all([odapp.getDefinitions(stakingAAs), odapp.getAAsStateVars(stakingAAs)]);
+      const [stakingDefs, stakingStateVars] = await Promise.all([
+        this.odappService.getDefinitions(stakingAAs),
+        this.odappService.getAAsStateVars(stakingAAs),
+      ]);
 
       for (const aa in metaByAA) {
         const meta = metaByAA[aa];
@@ -54,7 +57,7 @@ export class CurrentDataService {
 
       const perpetualStats: PerpetualStat[] = [];
       for (const aa in metaByAA) {
-        perpetualStats.push(await this.preparePythService.prepareMetaByAA(metaByAA[aa], odapp));
+        perpetualStats.push(await this.preparePythService.prepareMetaByAA(metaByAA[aa]));
       }
 
       await this.savePerpetualStatsToDb(perpetualStats);
@@ -75,9 +78,9 @@ export class CurrentDataService {
           aaAddress,
           mci,
           asset: priceData.asset,
-          notForUse: 1,
-          price: priceData.price,
-          priceFromResponse: 0,
+          isRealtime: 1,
+          usdPrice: priceData.usdPrice,
+          priceInReserve: 0,
           timestamp,
         });
       }

@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { ObyteService } from './obyte.service';
 import { ObyteNetworkService } from './obyte-network.service';
-import obyteConfig from '../../config/obyte.config';
+import { CacheModule } from '../cache/cache.module';
 
 @Module({
-  imports: [ConfigModule.forFeature(obyteConfig)],
+  imports: [CacheModule],
   providers: [ObyteService, ObyteNetworkService],
   exports: [ObyteService, ObyteNetworkService],
 })

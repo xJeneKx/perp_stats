@@ -14,14 +14,15 @@ export class PerpPriceRepository {
     try {
       await db.query(
         `INSERT OR IGNORE INTO perp_price_history 
-        (aa_address, mci, asset, not_for_use, price, price_from_response, timestamp) 
+        (aa_address, mci, asset, is_realtime, usd_price, price_in_reserve, timestamp) 
         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [data.aaAddress, data.mci, data.asset, data.notForUse ? 1 : 0, data.price, data.priceFromResponse, data.timestamp],
+        [data.aaAddress, data.mci, data.asset, data.isRealtime, data.usdPrice, data.priceInReserve, data.timestamp],
       );
 
       return true;
     } catch (error) {
       this.logger.error(`Error saving price data: ${error.message}`, error.stack);
+
       return false;
     }
   }
@@ -29,9 +30,11 @@ export class PerpPriceRepository {
   async getLastMci(): Promise<number> {
     try {
       const rows = await db.query('SELECT mci as last_mci FROM perp_price_history ORDER BY mci DESC LIMIT 1');
+
       return rows[0]?.last_mci || 0;
     } catch (error) {
       this.logger.error(`Error getting last MCI: ${error.message}`, error.stack);
+
       return 0;
     }
   }
@@ -52,7 +55,7 @@ export class PerpPriceRepository {
 
       const query = `
         SELECT 
-          aa_address, mci, asset, not_for_use, price, price_from_response, timestamp
+          aa_address, mci, asset, is_realtime, usd_price, price_in_reserve, timestamp
         FROM perp_price_history
           WHERE asset = ? AND timestamp >= ?
         ORDER BY timestamp ASC
@@ -61,6 +64,7 @@ export class PerpPriceRepository {
       return await db.query(query, [asset, startTimestamp]);
     } catch (error) {
       this.logger.error(`Error getting last week's prices: ${error.message}`, error.stack);
+
       throw new InternalServerErrorException('Failed to retrieve last week price data');
     }
   }
@@ -72,7 +76,7 @@ export class PerpPriceRepository {
 
       const query = `
         SELECT 
-          aa_address, mci, asset, not_for_use, price, price_from_response, timestamp
+          aa_address, mci, asset, is_realtime, usd_price, price_in_reserve, timestamp
         FROM perp_price_history
         WHERE asset = ? 
         AND timestamp >= ?
@@ -99,16 +103,19 @@ export class PerpPriceRepository {
       return result || [];
     } catch (error) {
       this.logger.error(`Error getting last month's prices: ${error.message}`, error.stack);
+
       throw new InternalServerErrorException('Failed to retrieve last month price data');
     }
   }
 
   async getUniqNotSwapPyth(): Promise<string[]> {
     try {
-      const rows = await db.query('SELECT DISTINCT aa_address FROM perp_price_history WHERE not_for_use = 0');
+      const rows = await db.query('SELECT DISTINCT aa_address FROM perp_price_history WHERE is_realtime = 0');
+
       return rows.map((row: { aa_address: string }) => row.aa_address);
     } catch (error) {
       this.logger.error(`Error getting unique not swap assets: ${error.message}`, error.stack);
+
       throw new InternalServerErrorException('Failed to retrieve unique not swap assets');
     }
   }
@@ -116,9 +123,11 @@ export class PerpPriceRepository {
   async getAssetsByPyth(pyth: string): Promise<string[]> {
     try {
       const rows = await db.query('SELECT DISTINCT asset FROM perp_price_history WHERE aa_address = ?', [pyth]);
+
       return rows.map((row: { asset: string }) => row.asset);
     } catch (error) {
       this.logger.error(`Error getting assets by Pyth: ${error.message}`, error.stack);
+
       throw new InternalServerErrorException('Failed to retrieve assets by Pyth');
     }
   }
@@ -126,14 +135,16 @@ export class PerpPriceRepository {
   async getLastPriceFromResponse(pyth: string, asset: string): Promise<number> {
     try {
       const rows = await db.query(
-        `SELECT price_from_response FROM perp_price_history 
-        WHERE aa_address = ? AND asset = ? 
+        `SELECT price_in_reserve FROM perp_price_history 
+        WHERE aa_address = ? AND asset = ? AND is_realtime = 0
         ORDER BY timestamp DESC LIMIT 1`,
         [pyth, asset],
       );
-      return rows[0]?.price_from_response || 0;
+
+      return rows[0]?.price_in_reserve || 0;
     } catch (error) {
       this.logger.error(`Error getting last price from response for Pyth: ${pyth}, asset: ${asset}: ${error.message}`, error.stack);
+
       throw new InternalServerErrorException('Failed to retrieve last price from response');
     }
   }
@@ -141,15 +152,16 @@ export class PerpPriceRepository {
   async getTimestampByMci(mci: number): Promise<number> {
     try {
       const rows = await db.query('SELECT timestamp FROM perp_price_history WHERE mci = ? ORDER BY timestamp DESC LIMIT 1', [mci]);
+
       return rows[0]?.timestamp || 0;
     } catch (error) {
       this.logger.error(`Error getting timestamp by mci ${mci}: ${error.message}`, error.stack);
+
       return 0;
     }
   }
 
-  async savePricesInBulk(records: PerpPriceDto[]): Promise<boolean> {
-    if (records.length === 0) return true;
+  async savePricesInBulk(records: PerpPriceDto[]): Promise<void> {
     const conn = await db.takeConnectionFromPool();
     try {
       await conn.query(`BEGIN TRANSACTION`);
@@ -157,19 +169,17 @@ export class PerpPriceRepository {
       for (const data of records) {
         await conn.query(
           `INSERT OR IGNORE INTO perp_price_history 
-          (aa_address, mci, asset, not_for_use, price, price_from_response, timestamp) 
+          (aa_address, mci, asset, is_realtime, usd_price, price_in_reserve, timestamp) 
           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [data.aaAddress, data.mci, data.asset, data.notForUse ? 1 : 0, data.price, data.priceFromResponse, data.timestamp],
+          [data.aaAddress, data.mci, data.asset, data.isRealtime, data.usdPrice, data.priceInReserve, data.timestamp],
         );
       }
 
       await conn.query(`COMMIT`);
       this.logger.log(`Successfully saved ${records.length} price records in bulk`);
-      return true;
     } catch (error) {
       await conn.query(`ROLLBACK`);
       this.logger.error(`Error saving prices in bulk: ${error.message}`, error.stack);
-      return false;
     } finally {
       conn.release();
     }
